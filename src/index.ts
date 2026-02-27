@@ -248,6 +248,47 @@ class ClassroomMCPServer {
           required: ['courseId', 'email'],
         },
       },
+      {
+        name: 'classroom_update_assignment',
+        description: 'Update an existing assignment (coursework)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            courseId: {
+              type: 'string',
+              description: 'Course ID',
+            },
+            assignmentId: {
+              type: 'string',
+              description: 'Assignment ID to update',
+            },
+            title: {
+              type: 'string',
+              description: 'Assignment title',
+            },
+            description: {
+              type: 'string',
+              description: 'Assignment description',
+            },
+            materials: {
+              type: 'array',
+              description: 'Array of materials (links, files, etc.)',
+              items: {
+                type: 'object',
+                properties: {
+                  type: {
+                    type: 'string',
+                    enum: ['link', 'form', 'video', 'file'],
+                  },
+                  url: { type: 'string' },
+                  title: { type: 'string' },
+                },
+              },
+            },
+          },
+          required: ['courseId', 'assignmentId'],
+        },
+      },
     ];
   }
 
@@ -275,6 +316,9 @@ class ClassroomMCPServer {
 
       case 'classroom_add_student':
         return await this.addStudent(classroom, args);
+
+      case 'classroom_update_assignment':
+        return await this.updateAssignment(classroom, args);
 
       default:
         throw new Error(`Unknown tool: ${name}`);
@@ -434,6 +478,52 @@ class ClassroomMCPServer {
     const response = await classroom.courses.students.create({
       courseId: args.courseId,
       requestBody: student,
+    });
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(response.data, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async updateAssignment(classroom: any, args: any) {
+    const updateMask: string[] = [];
+    const coursework: any = {};
+
+    if (args.title) {
+      coursework.title = args.title;
+      updateMask.push('title');
+    }
+
+    if (args.description) {
+      coursework.description = args.description;
+      updateMask.push('description');
+    }
+
+    if (args.materials && args.materials.length > 0) {
+      coursework.materials = args.materials.map((mat: any) => {
+        if (mat.type === 'link') {
+          return {
+            link: {
+              url: mat.url,
+              title: mat.title,
+            },
+          };
+        }
+        return mat;
+      });
+      updateMask.push('materials');
+    }
+
+    const response = await classroom.courses.courseWork.patch({
+      courseId: args.courseId,
+      id: args.assignmentId,
+      updateMask: updateMask.join(','),
+      requestBody: coursework,
     });
 
     return {
